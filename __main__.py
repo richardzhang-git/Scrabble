@@ -5,6 +5,7 @@ import sys
 
 # Example bot function
 import exampleBot
+import sticktrout
 
 
 def removeTilesFromRack(rack, placements):
@@ -218,8 +219,8 @@ board = Board()
 bag = LetterBag()
 
 players = [
-    {"name": "Bot 1", "rack": bag.draw(7), "score": 0, "function": exampleBot.getMove},
-    {"name": "Bot 2", "rack": bag.draw(7), "score": 0, "function": exampleBot.getMove},
+    {"name": "Sticktrout", "rack": bag.draw(7), "score": 0, "function": sticktrout.getMove},
+    {"name": "Stonkfish Placeholder", "rack": bag.draw(7), "score": 0, "function": sticktrout.getMove},
 ]
 consec_passes = 0
 moves_played = 0
