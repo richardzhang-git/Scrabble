@@ -4,8 +4,7 @@ import twl
 import numpy as np
 from collections import Counter
 '''keep record of previous board and previous possible 1 branches
-interface is broken for illegal moves
-blanks can be outputted as capital and will then still be scored'''
+high score: 479'''
 LETTER_SCORES = {'?': 0, 'A': 1, 'E': 1, 'I': 1, 'O': 1, 'N': 1, 'R': 1, 'T': 1, 'L': 1, 'S': 1, 'U': 1, 'D': 2, 'G': 2, 'B': 3, 'C': 3, 'M': 3, 'P': 3, 'F': 4, 'H': 4, 'V': 4, 'W': 4, 'Y': 4, 'K': 5, 'J': 8, 'X': 8, 'Q': 10, 'Z': 10}
 board = [[["", None] for j in range(15)] for i in range(15)] #None = blank, L = left possible, R = right possible, U = up possible, D = down possible, LR, etc. with mixed = multiple possible N = none (blocked or used)
 board_empty = True
@@ -16,6 +15,9 @@ possible_indexes = np.array([[-1, -1], ])
 BLANK_GREED = 0 #more negative, less willing to use
 #TODO: doesn't have to start on center square, just go through it (optional)
 #TODO: strategy with max/min available tiles for opponent to play off of
+#TODO: bridge towards bonus tiles
+#TODO: save letters for big bingos?
+#TODO: adapt based on score lead/loss
 def getMove(rack, board_state, bonus_squares):
     global board, board_empty, LETTER_SCORES, possible_points, possible_indexes
     for i in range(15):
@@ -110,9 +112,6 @@ def getMove(rack, board_state, bonus_squares):
                     if 'R' in board[possible_indexes[point][0]][possible_indexes[point][1]][1] and i == possible_indexes[point][0] and -2 <= possible_indexes[point][1]-j <= 1:
                         board[possible_indexes[point][0]][possible_indexes[point][1]][1] = board[possible_indexes[point][0]][possible_indexes[point][1]][1].replace('R', '')
                     if not board[possible_indexes[point][0]][possible_indexes[point][1]][1]:
-                        # print(possible_indexes[point])
-                        # print(possible_points)
-                        # print(possible_points[board_state[possible_indexes[point][0]][possible_indexes[point][1]]])
                         possible_points[board_state[possible_indexes[point][0]][possible_indexes[point][1]]].remove(tuple(possible_indexes[point]))
                     else:
                         new_pos_i.append(possible_indexes[point])
@@ -220,7 +219,6 @@ def getMove(rack, board_state, bonus_squares):
         possible_all_anchors += list(zip(potential_words_dupes, scores, anchor_pos, directions, positions, blanks_used))
     possible_all_anchors.sort(key=lambda x: x[1], reverse=True)
     if len(possible_all_anchors):
-        print(possible_all_anchors[0])
         chosen_word = list(possible_all_anchors[0][0])
         for i in possible_all_anchors[0][5]:
             chosen_word[i] = chosen_word[i].lower()
@@ -237,20 +235,3 @@ def getMove(rack, board_state, bonus_squares):
         #only return placed letters, not whole word
         return chosen_word
     return []
-
-
-
-# import string
-# import random
-# rack = [random.choice(string.ascii_uppercase + '?') for i in range(7)]
-# print(rack)
-# test_board = [['']*15 for i in range(15)]
-# test_board[7][7] = "E"
-# test_board[7][8] = "X"
-# test_board[7][9] = "E"
-# test_board[7][10] = "S"
-# test_board[8][3] = "B"
-# test_board[8][4] = "O"
-# test_board[8][5] = "R"
-# test_board[8][6] = "A"
-# print(getMove(rack, test_board, {}))
