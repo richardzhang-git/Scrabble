@@ -15,6 +15,7 @@ possible_indexes = np.array([[-1, -1], ])
 #preferences
 BLANK_GREED = 0 #more negative, less willing to use
 #TODO: doesn't have to start on center square, just go through it (optional)
+#TODO: strategy with max/min available tiles for opponent to play off of
 def getMove(rack, board_state, bonus_squares):
     global board, board_empty, LETTER_SCORES, possible_points, possible_indexes
     for i in range(15):
@@ -60,10 +61,10 @@ def getMove(rack, board_state, bonus_squares):
                 v_score = sum(v_score)
                 h_score = sum(h_score)
                 if v_score > h_score:
-                    scores.append(v_score)
+                    scores.append(v_score + (50 if len(i) == 7 else 0))
                     directions.append('V')
                 else:
-                    scores.append(h_score)
+                    scores.append(h_score + (50 if len(i) == 7 else 0))
                     directions.append('H')
                 blanks_used.append(blanks_index)
             potential = list(zip(potential, scores, directions, blanks_used))
@@ -151,7 +152,7 @@ def getMove(rack, board_state, bonus_squares):
                             score.append(LETTER_SCORES[word[l]])
                 else:
                     score = [LETTER_SCORES[l] for l in word]
-                for anchor_row, anchor_col in possible_points[anchor]: #TODO: implement special tiles
+                for anchor_row, anchor_col in possible_points[anchor]:
                     for i in range(len(word)):
                         if word[i] == anchor:
                             if 'U' in board[anchor_row][anchor_col][1] or 'D' in board[anchor_row][anchor_col][1]:
@@ -167,8 +168,20 @@ def getMove(rack, board_state, bonus_squares):
                                         if not valid:
                                             break
                                 if valid:
+                                    score_copy = score.copy()
+                                    for j in range(anchor_row-i, anchor_row-i+len(word)):
+                                        if (j, anchor_col) not in bonus_squares.keys():
+                                            continue
+                                        if bonus_squares[(j, anchor_col)] == 'TW':
+                                            score_copy = [_*3 for _ in score_copy]
+                                        elif bonus_squares[(j, anchor_col)] == 'DW':
+                                            score_copy = [_*2 for _ in score_copy]
+                                        elif bonus_squares[(j, anchor_col)] == 'TL':
+                                            score_copy[j-anchor_row+i] *= 3
+                                        else:
+                                            score_copy[j - anchor_row + i] *= 2
                                     potential_words_dupes.append(word)
-                                    scores.append(sum(score))
+                                    scores.append(sum(score_copy) + (50 if len(word) > 7 else 0))
                                     anchor_pos.append((anchor_row, anchor_col))
                                     directions.append('V')
                                     positions.append((anchor_row-i, anchor_col))
@@ -186,8 +199,20 @@ def getMove(rack, board_state, bonus_squares):
                                         if not valid:
                                             break
                                 if valid:
+                                    score_copy = score.copy()
+                                    for j in range(anchor_col - i, anchor_col - i + len(word)):
+                                        if (anchor_row, j) not in bonus_squares.keys():
+                                            continue
+                                        if bonus_squares[(anchor_row, j)] == 'TW':
+                                            score_copy = [_ * 3 for _ in score_copy]
+                                        elif bonus_squares[(anchor_row, j)] == 'DW':
+                                            score_copy = [_ * 2 for _ in score_copy]
+                                        elif bonus_squares[(anchor_row, j)] == 'TL':
+                                            score_copy[j - anchor_col + i] *= 3
+                                        else:
+                                            score_copy[j - anchor_col + i] *= 2
                                     potential_words_dupes.append(word)
-                                    scores.append(sum(score))
+                                    scores.append(sum(score_copy) + (50 if len(word) > 7 else 0))
                                     anchor_pos.append((anchor_row, anchor_col))
                                     directions.append('H')
                                     positions.append((anchor_row, anchor_col-i))
