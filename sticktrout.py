@@ -4,7 +4,7 @@ import twl
 import numpy as np
 from collections import Counter
 '''keep record of previous board and previous possible 1 branches
-high score: 479'''
+high score: 559'''
 LETTER_SCORES = {'?': 0, 'A': 1, 'E': 1, 'I': 1, 'O': 1, 'N': 1, 'R': 1, 'T': 1, 'L': 1, 'S': 1, 'U': 1, 'D': 2, 'G': 2, 'B': 3, 'C': 3, 'M': 3, 'P': 3, 'F': 4, 'H': 4, 'V': 4, 'W': 4, 'Y': 4, 'K': 5, 'J': 8, 'X': 8, 'Q': 10, 'Z': 10}
 board = [[["", None] for j in range(15)] for i in range(15)] #None = blank, L = left possible, R = right possible, U = up possible, D = down possible, LR, etc. with mixed = multiple possible N = none (blocked or used)
 board_empty = True
@@ -12,8 +12,7 @@ possible_points = {'A': [], 'B': [], 'C': [], 'D': [], 'E': [], 'F': [], 'G': []
 possible_indexes = np.array([[-1, -1], ])
 
 #preferences
-BLANK_GREED = 0 #more negative, less willing to use
-#TODO: doesn't have to start on center square, just go through it (optional)
+BLANK_GREED = 0.5 #more positive, less willing to use
 #TODO: strategy with max/min available tiles for opponent to play off of
 #TODO: bridge towards bonus tiles
 #TODO: save letters for big bingos?
@@ -39,6 +38,7 @@ def getMove(rack, board_state, bonus_squares):
     if board_empty: #first move
         potential = list(twl.anagram(''.join(rack).lower()))
         if potential:
+            offsets = []
             for i in potential:
                 i = i.upper()
                 rack_counter_copy = rack_counter.copy()
@@ -48,36 +48,50 @@ def getMove(rack, board_state, bonus_squares):
                     for l in range(len(i)):
                         rack_counter_copy.subtract([i[l]])
                         if rack_counter_copy[i[l]] < 0:
-                            v_score.append(BLANK_GREED)
+                            v_score.append(0)
                             blanks_index.append(l)
                         else:
                             v_score.append(LETTER_SCORES[i[l]])
                 else:
                     v_score = [LETTER_SCORES[l] for l in i]
-                h_score = v_score.copy()
-                v_score[1] *= 2
-                if len(v_score) >= 6:
-                    v_score[5] *= 2
-                if len(h_score) >= 5:
-                    h_score[4] *= 2
-                v_score = sum(v_score)
-                h_score = sum(h_score)
-                if v_score > h_score:
-                    scores.append(v_score + (50 if len(i) == 7 else 0))
-                    directions.append('V')
-                else:
-                    scores.append(h_score + (50 if len(i) == 7 else 0))
-                    directions.append('H')
+                max_score = v_score.copy()
+                offset = 0
+                direction = "V"
+                for j in range(len(i)):
+                    temp_score = v_score.copy()
+                    if j+1 < len(temp_score):
+                        temp_score[j+1] *= 2
+                    if j+5 < len(temp_score):
+                        temp_score[j+5] *= 2
+                    if j-1 >= 0:
+                        temp_score[j-1] *= 2
+                    if sum(temp_score) > sum(max_score):
+                        max_score = temp_score
+                        offset = j
+                for j in range(len(i)):
+                    temp_score = v_score.copy()
+                    if j+4 < len(temp_score):
+                        temp_score[j+4] *= 2
+                    if j-4 >= 0:
+                        temp_score[j-4] *= 2
+                    if sum(temp_score) > sum(max_score):
+                        max_score = temp_score
+                        offset = j
+                        direction = 'H'
+                v_score = sum(max_score)
+                scores.append(v_score + (50 if len(i) == 7 else 0))
+                directions.append(direction)
+                offsets.append(offset)
                 blanks_used.append(blanks_index)
-            potential = list(zip(potential, scores, directions, blanks_used))
-            potential.sort(key=lambda x: x[1])
+            potential = list(zip(potential, scores, directions, offsets, blanks_used))
+            potential.sort(key=lambda x: x[1] - BLANK_GREED*len(x[4]))
             chosen_word = list(potential[-1][0].upper())
-            for i in potential[-1][3]:
+            for i in potential[-1][4]:
                 chosen_word[i] = chosen_word[i].lower()
             chosen_word = "".join(chosen_word)
             if potential[-1][2] == 'H':
-                return [(7, 7+i, chosen_word[i]) for i in range(len(chosen_word))]
-            return [(7+i, 7, chosen_word[i]) for i in range(len(chosen_word))]
+                return [(7, 7+i-potential[-1][3], chosen_word[i]) for i in range(len(chosen_word))]
+            return [(7+i-potential[-1][3], 7, chosen_word[i]) for i in range(len(chosen_word))]
         return []
     #actual algorithm here
     possible_letters = list()
@@ -145,7 +159,7 @@ def getMove(rack, board_state, bonus_squares):
                     for l in range(len(word)):
                         rack_counter_copy.subtract([word[l]])
                         if rack_counter_copy[word[l]] < 0:
-                            score.append(BLANK_GREED)
+                            score.append(0)
                             blanks_index.append(l)
                         else:
                             score.append(LETTER_SCORES[word[l]])
@@ -217,7 +231,7 @@ def getMove(rack, board_state, bonus_squares):
                                     positions.append((anchor_row, anchor_col-i))
                                     blanks_used.append(blanks_index)
         possible_all_anchors += list(zip(potential_words_dupes, scores, anchor_pos, directions, positions, blanks_used))
-    possible_all_anchors.sort(key=lambda x: x[1], reverse=True)
+    possible_all_anchors.sort(key=lambda x: x[1] - BLANK_GREED*len(x[5]), reverse=True)
     if len(possible_all_anchors):
         chosen_word = list(possible_all_anchors[0][0])
         for i in possible_all_anchors[0][5]:

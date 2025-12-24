@@ -227,6 +227,7 @@ moves_played = 0
 turn = 0
 game_over = False
 last_move_info = None
+debug_pauses = 0
 
 # Initialize visualizer
 visualizer = ScrabbleVisualizer(board)
@@ -272,11 +273,12 @@ while running:
         isFirst = (moves_played == 0)
 
         visualizer.draw_board(players, turn, last_move_info, f"{name} is thinking...")
-        pygame.time.wait(300 if auto_play else 100)
+        if debug_pauses:
+            pygame.time.wait(300 if auto_play else 100)
 
         # Ask bot for its move
         try:
-            placements = bot_function(list(rack), [row[:] for row in board.state], dict(board.bonus))
+            placements = bot_function(list  (rack), [row[:] for row in board.state], dict(board.bonus))
             print(f"{name} returned: {placements}")
         except Exception as e:
             print(f"{name} crashed with error: {e}")
@@ -358,7 +360,7 @@ while running:
         turn += 1
         waiting_for_space = not auto_play
 
-        if auto_play:
+        if auto_play and debug_pauses:
             pygame.time.wait(1000)  # 1 second between moves in auto mode
 
     # Update display
