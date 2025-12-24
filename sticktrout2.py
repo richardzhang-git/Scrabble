@@ -10,7 +10,8 @@ board = [[["", None] for j in range(15)] for i in range(15)] #None = blank, L = 
 board_empty = True
 possible_points = {'A': [], 'B': [], 'C': [], 'D': [], 'E': [], 'F': [], 'G': [], 'H': [], 'I': [], 'J': [], 'K': [], 'L': [], 'M': [], 'N': [], 'O': [], 'P': [], 'Q': [], 'R': [], 'S': [], 'T': [], 'U': [], 'V': [], 'W': [], 'X': [], 'Y': [], 'Z': []}
 possible_indexes = np.array([[-1, -1], ])
-
+trout_score = 0
+opp_score = 0
 #preferences
 BLANK_GREED = 0.5 #more positive, less willing to use
 #TODO: strategy with max/min available tiles for opponent to play off of
@@ -19,7 +20,8 @@ BLANK_GREED = 0.5 #more positive, less willing to use
 #TODO: functionize
 #TODO: adapt based on score lead/loss
 def getMove(rack, board_state, bonus_squares):
-    global board, board_empty, LETTER_SCORES, possible_points, possible_indexes
+    global board, board_empty, LETTER_SCORES, possible_points, possible_indexes, trout_score, opp_score
+    print("start", trout_score)
     for i in range(15):
         for j in range(15):
             board_state[i][j] = board_state[i][j].upper()
@@ -90,6 +92,8 @@ def getMove(rack, board_state, bonus_squares):
             for i in potential[-1][4]:
                 chosen_word[i] = chosen_word[i].lower()
             chosen_word = "".join(chosen_word)
+            print(potential[-1][1])
+            trout_score += potential[-1][1]
             if potential[-1][2] == 'H':
                 return [(7, 7+i-potential[-1][3], chosen_word[i]) for i in range(len(chosen_word))]
             return [(7+i-potential[-1][3], 7, chosen_word[i]) for i in range(len(chosen_word))]
@@ -235,6 +239,8 @@ def getMove(rack, board_state, bonus_squares):
     possible_all_anchors.sort(key=lambda x: x[1] - BLANK_GREED*len(x[5]), reverse=True)
     if len(possible_all_anchors):
         chosen_word = list(possible_all_anchors[0][0])
+        trout_score += possible_all_anchors[0][1]
+        print(possible_all_anchors[0][1])
         for i in possible_all_anchors[0][5]:
             chosen_word[i] = chosen_word[i].lower()
         if possible_all_anchors[0][3] == 'H':
