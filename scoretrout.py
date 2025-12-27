@@ -1,5 +1,3 @@
-from idna import valid_label_length
-
 import twl
 import numpy as np
 from collections import Counter
@@ -19,7 +17,6 @@ BLANK_GREED = 0.5 #more positive, less willing to use
 #TODO: strategy with max/min available tiles for opponent to play off of
 #TODO: bridge towards bonus tiles
 #TODO: save letters for big bingos?
-#TODO: functionize
 #TODO: adapt based on score lead/loss
 #TODO: spacial sense and moving towards open areas
 #TODO: adding full word to get score of both word and anchor
