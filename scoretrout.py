@@ -177,6 +177,8 @@ def update_board(board_state, record_opp_score=False):
             print(new_score)
         # print(new_points)
         print('opp', opp_score)
+
+
 def getMove(rack, board_state, bonus_squares):
     global board, board_empty, LETTER_SCORES, possible_points, possible_indexes, trout_score, opp_score
     rack_counter = Counter(rack)
