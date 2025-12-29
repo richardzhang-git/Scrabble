@@ -12,19 +12,17 @@ BLANK_GREED = 0.5
 
 trout_score = 0
 
-def compare(arr):
-    m = arr[0]
-    for i in arr:
-        if i[1] > m[1]:
-            m = i
-    return m
+def compare(t1, t2):
+    if t1[1] >= t2[1]:
+        return t1
+    return t2
 
 def dfs(prefix, row, col, dir, points_so_far, crossword_points, already_connected, board, original_rack_len, rack_left, blanks_used, mult_so_far, bonus_squares): #also, mult_so_far
     global types
     if col > 14 or row > 14:
         if twl.check(prefix) and already_connected and len(rack_left) != original_rack_len:
-            return [(prefix, points_so_far*mult_so_far+crossword_points+(50 if original_rack_len == 7 and not len(rack_left) else 0), blanks_used)]
-        return []
+            return (prefix, points_so_far*mult_so_far+crossword_points+(50 if original_rack_len == 7 and not len(rack_left) else 0), blanks_used)
+        return None
     if board[row][col]:
         if dir == 'H':
             return dfs(prefix + board[row][col].lower(), row, col+1, dir, points_so_far+(LETTER_SCORES[board[row][col]] if board[row][col] == board[row][col].upper() else 0), crossword_points, True, board, original_rack_len, rack_left, blanks_used, mult_so_far, bonus_squares)
@@ -32,17 +30,17 @@ def dfs(prefix, row, col, dir, points_so_far, crossword_points, already_connecte
             return dfs(prefix + board[row][col].lower(), row + 1, col, dir, points_so_far + (LETTER_SCORES[board[row][col]] if board[row][col] == board[row][col].upper() else 0), crossword_points, True, board, original_rack_len, rack_left, blanks_used, mult_so_far, bonus_squares)
     if not len(rack_left):
         if twl.check(prefix) and already_connected:
-            return [(prefix, points_so_far*mult_so_far+crossword_points+(50 if original_rack_len == 7 and not len(rack_left) else 0), blanks_used)]
-        return []
+            return (prefix, points_so_far*mult_so_far+crossword_points+(50 if original_rack_len == 7 and not len(rack_left) else 0), blanks_used)
+        return None
     possible_next = list(twl.children(prefix))
-    all_possibilities = []
+    max_possibility = None
     for i in possible_next:
         if prefix == 'sautoir':
             print(row, col, prefix, i)
         has_crossword = False
         if i == '$':
             if len(rack_left) != original_rack_len and already_connected:
-                all_possibilities.append((prefix, points_so_far*mult_so_far+crossword_points+(50 if original_rack_len == 7 and not len(rack_left) else 0), blanks_used))
+                max_possibility = (prefix, points_so_far*mult_so_far+crossword_points+(50 if original_rack_len == 7 and not len(rack_left) else 0), blanks_used)
         elif i.upper() not in rack_left:
             if '?' in rack_left: #differentiate between h and v
                 if dir == 'H':
@@ -81,7 +79,12 @@ def dfs(prefix, row, col, dir, points_so_far, crossword_points, already_connecte
                             new_mult *= 3
                         elif bonus_squares[(row, col)] == 'DW':
                             new_mult *= 2
-                    all_possibilities += dfs(prefix + i, row, col + 1, dir, new_score, new_crossword_score, already_connected or has_crossword, board, original_rack_len, rack_copy, blanks_used + [len(prefix)], new_mult, bonus_squares)
+                    next = dfs(prefix + i, row, col + 1, dir, new_score, new_crossword_score, already_connected or has_crossword, board, original_rack_len, rack_copy, blanks_used + [len(prefix)], new_mult, bonus_squares)
+                    if next is not None:
+                        if max_possibility is None:
+                            max_possibility = next
+                        else:
+                            max_possibility = compare(max_possibility, next)
                 else:
                     l_b = col
                     while l_b >= 1 and board[row][l_b - 1]:
@@ -118,7 +121,12 @@ def dfs(prefix, row, col, dir, points_so_far, crossword_points, already_connecte
                             new_mult *= 3
                         elif bonus_squares[(row, col)] == 'DW':
                             new_mult *= 2
-                    all_possibilities += dfs(prefix + i, row + 1, col, dir, new_score, new_crossword_score, already_connected or has_crossword, board, original_rack_len, rack_copy, blanks_used, new_mult, bonus_squares)
+                    next = dfs(prefix + i, row + 1, col, dir, new_score, new_crossword_score, already_connected or has_crossword, board, original_rack_len, rack_copy, blanks_used, new_mult, bonus_squares)
+                    if next is not None:
+                        if max_possibility is None:
+                            max_possibility = next
+                        else:
+                            max_possibility = compare(max_possibility, next)
         elif dir == 'H':
             l_b = row
             while l_b >= 1 and board[l_b-1][col]:
@@ -164,7 +172,12 @@ def dfs(prefix, row, col, dir, points_so_far, crossword_points, already_connecte
                     new_score += 2*LETTER_SCORES[i.upper()]
                 else:
                     new_score += LETTER_SCORES[i.upper()]
-            all_possibilities += dfs(prefix+i, row, col+1, dir, new_score, new_crossword_score, already_connected or has_crossword, board, original_rack_len, rack_copy, blanks_used, new_mult, bonus_squares)
+            next = dfs(prefix+i, row, col+1, dir, new_score, new_crossword_score, already_connected or has_crossword, board, original_rack_len, rack_copy, blanks_used, new_mult, bonus_squares)
+            if next is not None:
+                if max_possibility is None:
+                    max_possibility = next
+                else:
+                    max_possibility = compare(max_possibility, next)
         else:
             l_b = col
             while l_b >= 1 and board[row][l_b - 1]:
@@ -210,11 +223,13 @@ def dfs(prefix, row, col, dir, points_so_far, crossword_points, already_connecte
                     new_score += 2*LETTER_SCORES[i.upper()]
                 else:
                     new_score += LETTER_SCORES[i.upper()]
-            all_possibilities += dfs(prefix + i, row + 1, col, dir, new_score, new_crossword_score, already_connected or has_crossword, board, original_rack_len, rack_copy, blanks_used, new_mult, bonus_squares)
-    if row == 10 and col == 1 and prefix == '':
-        print(all_possibilities)
-    # return [compare(all_possibilities)] if len(all_possibilities) else []
-    return all_possibilities
+            next = dfs(prefix + i, row + 1, col, dir, new_score, new_crossword_score, already_connected or has_crossword, board, original_rack_len, rack_copy, blanks_used, new_mult, bonus_squares)
+            if next is not None:
+                if max_possibility is None:
+                    max_possibility = next
+                else:
+                    max_possibility = compare(max_possibility, next)
+    return max_possibility
 
 def firstMove(rack, board_state, bonus_squares):
     rack_counter = Counter(rack)
@@ -293,32 +308,36 @@ def getMove(rack, board_state, bonus_squares):
             break
     if board_empty:
         return firstMove(rack, board_state, bonus_squares)
-    possibilities = []
+    optimal = None
     for i in range(14):
         for j in range(14):
             if i == 0 or not board_state[i-1][j]:
                 vertical_result = dfs('', i, j, 'V', 0, 0, False, board_state, len(rack), rack, [], 1, bonus_squares)
-                for word_i in range(len(vertical_result)):
-                    possibilities.append((vertical_result[word_i][0], vertical_result[word_i][1], vertical_result[word_i][2], i, j, 'V'))
+                if vertical_result is not None:
+                    if optimal is None:
+                        optimal = (vertical_result[0], vertical_result[1], vertical_result[2], i, j, 'V')
+                    else:
+                        optimal = compare(optimal, (vertical_result[0], vertical_result[1], vertical_result[2], i, j, 'V'))
             if j == 0 or not board_state[i][j-1]:
                 horizontal_result = dfs('', i, j, 'H', 0, 0, False, board_state, len(rack), rack, [], 1, bonus_squares)
-                for word_i in range(len(horizontal_result)):
-                    possibilities.append((horizontal_result[word_i][0], horizontal_result[word_i][1], horizontal_result[word_i][2], i, j, 'H'))
-    if not len(possibilities):
+                if horizontal_result is not None:
+                    if optimal is None:
+                        optimal = (horizontal_result[0], horizontal_result[1], horizontal_result[2], i, j, 'H')
+                    else:
+                        optimal = compare(optimal, (horizontal_result[0], horizontal_result[1], horizontal_result[2], i, j, 'H'))
+    if optimal is None:
         return []
-    print(possibilities)
-    max_tuple = compare(possibilities)
-    print(max_tuple)
+    print(optimal)
     output = []
-    for i in range(len(max_tuple[0])):
-        if max_tuple[5] == 'H':
-            if not board_state[max_tuple[3]][max_tuple[4]+i]:
-                output.append((max_tuple[3], max_tuple[4]+i, max_tuple[0][i] if i in max_tuple[2] else max_tuple[0][i].upper()))
+    for i in range(len(optimal[0])):
+        if optimal[5] == 'H':
+            if not board_state[optimal[3]][optimal[4]+i]:
+                output.append((optimal[3], optimal[4]+i, optimal[0][i] if i in optimal[2] else optimal[0][i].upper()))
         else:
-            if not board_state[max_tuple[3]+i][max_tuple[4]]:
-                output.append((max_tuple[3]+i, max_tuple[4], max_tuple[0][i] if i in max_tuple[2] else max_tuple[0][i].upper()))
+            if not board_state[optimal[3]+i][optimal[4]]:
+                output.append((optimal[3]+i, optimal[4], optimal[0][i] if i in optimal[2] else optimal[0][i].upper()))
     print(output)
-    trout_score += max_tuple[1]
+    trout_score += optimal[1]
     print(trout_score)
     return output
 #
