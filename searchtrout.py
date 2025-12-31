@@ -9,6 +9,7 @@ BLANK_GREED = 0.5
 
 #TODO: problem with scoring
 #TODO: implement blanks
+#TODO: plan for hooks
 
 trout_score = 0
 

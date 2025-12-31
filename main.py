@@ -7,8 +7,9 @@ from exampleBot import getMove
 import sticktrout
 import scoretrout
 import searchtrout
-# import random
-# random.seed(1234)
+import itertrout
+import random
+random.seed(1234)
 
 
 def removeTilesFromRack(rack, placements):
@@ -239,8 +240,8 @@ board = Board()
 bag = LetterBag()
 
 players = [
-    {"name": "Bot 1", "rack": bag.draw(7), "score": 0, "function": searchtrout.getMove, "illegal": False},
-    {"name": "Bot 2", "rack": bag.draw(7), "score": 0, "function": scoretrout.getMove, "illegal": False},
+    {"name": "Bot 1", "rack": bag.draw(7), "score": 0, "function": sticktrout.getMove, "illegal": False},
+    {"name": "Bot 2", "rack": bag.draw(7), "score": 0, "function": itertrout.getMove, "illegal": False},
 ]
 consec_passes = 0
 moves_played = 0
