@@ -1,11 +1,30 @@
 import twl
 from collections import Counter
 
-LETTER_SCORES = {'?': 0, 'A': 1, 'E': 1, 'I': 1, 'O': 1, 'N': 1, 'R': 1, 'T': 1, 'L': 1, 'S': 1, 'U': 1, 'D': 2, 'G': 2, 'B': 3, 'C': 3, 'M': 3, 'P': 3, 'F': 4, 'H': 4, 'V': 4, 'W': 4, 'Y': 4, 'K': 5, 'J': 8, 'X': 8, 'Q': 10, 'Z': 10}
+def unpack(d):
+    new_d = dict()
+    for key in d.keys():
+        value = d[key]
+        for c in key:
+            new_d[c.upper()] = value
+    return new_d
 
-#TODO: implement blanks
-BLANK_GREED = 0
+LETTER_SCORES = {
+    "aeionrtlsu": 1,
+    "dg": 2,
+    "bcmp": 3,
+    "fhvwy": 4,
+    'k': 5,
+    "jx": 8,
+    "qz": 10,
+    "?": 0
+}
+LETTER_SCORES = unpack(LETTER_SCORES)
+
 is_first_move = True
+
+def compare(x):
+    return x[1]
 
 def dfs(row: int, col: int, dir: str, board: list, rack: list, bonus_squares: dict):
     if dir == 'H':
@@ -14,17 +33,18 @@ def dfs(row: int, col: int, dir: str, board: list, rack: list, bonus_squares: di
     else:
         if row >= 1 and board[row-1][col]:
             return None
-    visited = []
-    result = []
-    connections_in_word = []
-    connections_from_crossword = []
-    blanks_used = []
+    visited = dict()
+    result = list()
+    connections_in_word = list()
+    connections_from_crossword = list()
+    blanks_used = list()
     placed_tile = False
+    can_bingo = len(rack) == 7
     if board[row][col]:
         stack = [board[row][col].lower()]
     else:
         stack = list(twl.children(""))[::-1]
-    stack = list(zip(stack, [0]*len(stack), [1]*len(stack), [0]*len(stack)))
+    stack = list(zip(stack, [0]*len(stack), [1]*len(stack), [0]*len(stack), [0]*len(stack)))
     word_so_far = ""
     score_so_far = 0
     mult_so_far = 1
@@ -44,10 +64,13 @@ def dfs(row: int, col: int, dir: str, board: list, rack: list, bonus_squares: di
         is_blank = False
         if word_so_far+new_letter in visited:
             continue
-        visited.append(word_so_far+new_letter)
+        else:
+            visited[word_so_far+new_letter] = True
         if new_letter == '$':
             if placed_tile and (connections_in_word or connections_from_crossword):
-                result.append((word_so_far, score_so_far*mult_so_far+crossword_scores, connections_in_word[:], blanks_used[:]))
+                result.append((word_so_far, score_so_far*mult_so_far+crossword_scores+(50 if can_bingo and not rack else 0), connections_in_word[:], blanks_used[:]))
+                # if can_bingo and not rack:
+                #     print("BINGO!", word_so_far, row, col, dir)
             continue
         if new_letter == "POP":
             rack.append(word_so_far[-1].upper())
@@ -174,7 +197,7 @@ def dfs(row: int, col: int, dir: str, board: list, rack: list, bonus_squares: di
                             crossword_score += LETTER_SCORES[new_letter.upper()]
                         continue
                     crossword += board[row + len(word_so_far) - 1][i].lower()
-                    crossword_score += LETTER_SCORES[board[row + len(word_so_far) - 1][i]] if board[row + len(word_so_far) - 1][i] == board[ + len(word_so_far) - 1][i].upper() else 0
+                    crossword_score += LETTER_SCORES[board[row + len(word_so_far) - 1][i]] if board[row + len(word_so_far) - 1][i] == board[row + len(word_so_far) - 1][i].upper() else 0
                 coords = (row + len(word_so_far) - 1, col)
                 if coords in bonus_squares.keys():
                     if bonus_squares[coords] == 'TW':
@@ -205,7 +228,7 @@ def dfs(row: int, col: int, dir: str, board: list, rack: list, bonus_squares: di
                         stack.append((next_letter, score_so_far, mult_so_far, crossword_scores))
                     else:
                         pass
-    return max(result, key=lambda x: x[1]) if result else None
+    return max(result, key=compare) if result else None
 
 def first_move(rack):
     rack_counter = Counter(rack)
@@ -261,7 +284,7 @@ def first_move(rack):
             offsets.append(offset)
             blanks_used.append(blanks_index)
         potential = list(zip(potential, scores, directions, offsets, blanks_used))
-        potential.sort(key=lambda x: x[1] - BLANK_GREED * len(x[4]))
+        potential.sort(key=lambda x: x[1])
         chosen_word = list(potential[-1][0].upper())
         for i in potential[-1][4]:
             chosen_word[i] = chosen_word[i].lower()
@@ -273,7 +296,7 @@ def first_move(rack):
     return []
 
 def getMove(rack, board_state, bonus_squares):
-    global is_first_move
+    global is_first_move, rack_weight
     if is_first_move and not ''.join([''.join(i) for i in board_state]):
         is_first_move = False
         return first_move(rack)
@@ -282,26 +305,22 @@ def getMove(rack, board_state, bonus_squares):
         for j in range(14):
             horizontal_result = dfs(i, j, 'H', board_state, rack, bonus_squares)
             if horizontal_result is not None:
-                possibilities.append((i, j, 'H', horizontal_result[0], horizontal_result[1], horizontal_result[2], horizontal_result[3]))
+                possibilities.append((horizontal_result[0], horizontal_result[1], horizontal_result[2], horizontal_result[3], i, j, 'H'))
             vertical_result = dfs(i, j, 'V', board_state, rack, bonus_squares)
             if vertical_result is not None:
-                possibilities.append((i, j, 'V', vertical_result[0], vertical_result[1], vertical_result[2], vertical_result[3]))
+                possibilities.append((vertical_result[0], vertical_result[1], vertical_result[2], vertical_result[3], i, j, 'V'))
     if not possibilities:
         return []
     # print(possibilities)
-    optimal = max(possibilities, key=lambda  x: x[4])
+    optimal = max(possibilities, key=compare)
     print(optimal)
     output = []
-    for i in range(len(optimal[3])):
-        if i not in optimal[5]:
-            if optimal[2] == 'H':
-                output.append((optimal[0], optimal[1]+i, optimal[3][i].upper()))
+    for i in range(len(optimal[0])):
+        if i not in optimal[2]:
+            if optimal[6] == 'H':
+                output.append((optimal[4], optimal[5]+i, optimal[0][i].upper()))
             else:
-                output.append((optimal[0]+i, optimal[1], optimal[3][i].upper()))
-    for i in optimal[6]:
+                output.append((optimal[4]+i, optimal[5], optimal[0][i].upper()))
+    for i in optimal[3]:
         output[i] = (output[i][0], output[i][1], output[i][2].lower())
     return output
-
-# board = [[""]*15 for i in range(15)]
-# result = dfs(0, 0, 'H', board, ['A', 'N', 'A', 'G', 'R', 'M', 'A'], {})
-# print(result)

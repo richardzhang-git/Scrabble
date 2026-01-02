@@ -63,6 +63,7 @@ class Board():
             **dict.fromkeys(list("QZ"), 10),
         }
         self.size = 15
+        self.blankLocations = []
 
     def _make_bonus_map(self):
         B = {}
@@ -94,6 +95,9 @@ class Board():
 
     def get_tile(self, r, c):
         return self.state[r][c]
+
+    def updateBlanks(self, newBlanks):
+        self.blankLocations.extend(newBlanks)
 
     def is_legal(self, placements, isFirstMove):
         # Returns true or false. If false, it explains why
@@ -269,7 +273,7 @@ class Board():
         }
         return True, "", details
 
-    def score_move(self, placements, validate, isFirstMove, blankLocations):
+    def score_move(self, placements, validate, isFirstMove):
         # Placements is a list [(r,c, letter)]
         # This scores the move assuming that it is a valid move
 
@@ -314,7 +318,7 @@ class Board():
             new = (r, c) in pos  # Not reused from exsisting letters
 
             letterMult = 1
-            if (r, c) in blankLocations:
+            if (r, c) in self.blankLocations:
                 base = 0
             else:
                 base = baseValue(ch)
@@ -354,7 +358,7 @@ class Board():
                         ch2 = letter_at(rrr, ccc)
                         new = (rrr, ccc) in pos
                         lm = 1
-                        if (rrr, ccc) in blankLocations:
+                        if (rrr, ccc) in self.blankLocations:
                             lv = 0
                         else:
                             lv = baseValue(ch2)
@@ -391,7 +395,7 @@ class Board():
                         new = (rrr, ccc) in pos
                         lm = 1
 
-                        if (rrr, ccc) in blankLocations:
+                        if (rrr, ccc) in self.blankLocations:
                             lv = 0
                         else:
                             lv = baseValue(ch2)
@@ -484,6 +488,21 @@ def canMakeWord(avail, used):
 # print(canMakeWord(rack,letters))
 # print(test.score_move(placements, validate=True, isFirstMove=True, blankLocations=[]))
 
+
+# test = Board()
+# rack = ["?","A","N","D","C","A","R"]
+# placements = [(7, 4, "H"), (7, 5, "A"), (7, 6, "N"), (7, 7, "D"), (7, 8, "C"),(7,9,"A"),(7,10,"R")]
+# letters = [ch for r, c, ch in placements]
+# print(canMakeWord(rack,letters))
+# newBlanks = findBlanks(rack, placements)
+# test.updateBlanks(newBlanks)
+# print(test.score_move(placements, validate=True, isFirstMove=True))
+
+
+# placements = [(6, 4, "T"), (8, 4, "U"), (9, 4, "J"), (10, 4, "A")]
+# print(test.score_move(placements, validate=True, isFirstMove=False))
+
+# Bug is that board does'nt keep track if a blank is on there or not
 
 # placements = [(8, 7, "H"), (8, 8, "E"), (8, 9, "W")]
 # print(test.score_move(placements, validate=True, isFirstMove=False, blankLocations=[]))

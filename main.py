@@ -2,15 +2,15 @@ from scrabble import Board, LetterBag
 from collections import Counter
 import pygame
 import sys
+
+# import random
+# random.seed(1234)
+
 # Example bot function
 from exampleBot import getMove
 import sticktrout
-import scoretrout
 import searchtrout
 import itertrout
-import random
-random.seed(1234)
-
 
 def removeTilesFromRack(rack, placements):
     for r, c, ch in placements:
@@ -240,8 +240,8 @@ board = Board()
 bag = LetterBag()
 
 players = [
-    {"name": "Bot 1", "rack": bag.draw(7), "score": 0, "function": sticktrout.getMove, "illegal": False},
-    {"name": "Bot 2", "rack": bag.draw(7), "score": 0, "function": itertrout.getMove, "illegal": False},
+    {"name": "Bot 1", "rack": bag.draw(7), "score": 0, "function": itertrout.getMove, "illegal": False},
+    {"name": "Bot 2", "rack": bag.draw(7), "score": 0, "function": sticktrout.getMove, "illegal": False},
 ]
 consec_passes = 0
 moves_played = 0
@@ -264,7 +264,7 @@ visualizer.draw_board(players, turn, message="Press SPACE to start | ESC to quit
 waiting_for_space = True
 auto_play = False
 running = True
-debug_pause = 0
+
 # Main game loop
 while running:
     # Handle events
@@ -293,22 +293,21 @@ while running:
         isFirst = (moves_played == 0)
 
         visualizer.draw_board(players, turn, last_move_info, f"{name} is thinking...")
-        if debug_pause:
-            pygame.time.wait(300 if auto_play else 100)
+        # pygame.time.wait(300 if auto_play else 100)
 
         # Ask bot for its move
-        # try:
-        placements = bot_function(list(rack), [row[:] for row in board.state], dict(board.bonus))
+        try:
+            placements = bot_function(list(rack), [row[:] for row in board.state], dict(board.bonus))
 
-        print(f"{name} returned: {placements}")
-        # except Exception as e:
-        #     print(f"{name} crashed with error: {e}")
-        #     placements = []
-        #     game_over = True
-        #     visualizer.draw_board(players, turn, last_move_info, f"{name} CRASHED - Game Over!")
-        #     players[turn % 2]["illegal"] = True
-        #     pygame.time.wait(3000)
-        #     continue
+            print(f"{name} returned: {placements}")
+        except Exception as e:
+            print(f"{name} crashed with error: {e}")
+            placements = []
+            game_over = True
+            visualizer.draw_board(players, turn, last_move_info, f"{name} CRASHED - Game Over!")
+            players[turn % 2]["illegal"] = True
+            pygame.time.wait(3000)
+            continue
 
         if not placements:
             consec_passes += 1
@@ -347,10 +346,11 @@ while running:
             continue
 
         # Process legal move
-        print("????????")
-        print(placements)
-        result = board.score_move(placements, validate=False, isFirstMove=isFirst,
-                                  blankLocations=findBlanks(rack, placements))
+        # print("????????")
+        # print(placements)
+        newBlanks = findBlanks(rack, placements)
+        board.updateBlanks(newBlanks)
+        result = board.score_move(placements, validate=False, isFirstMove=isFirst)
         current["score"] += result["score"]
         removeTilesFromRack(rack, placements)
         draw_n = 7 - len(rack)
@@ -387,8 +387,8 @@ while running:
         turn += 1
         waiting_for_space = not auto_play
 
-        if auto_play and debug_pause:
-            pygame.time.wait(1000)  # 1 second between moves in auto mode
+        # if auto_play:
+        #     pygame.time.wait(1000)  # 1 second between moves in auto mode
 
     # Update display
     if game_over:
@@ -424,8 +424,5 @@ while running:
 
     visualizer.clock.tick(60)
 
-while True:
-    pygame.time.wait(1)
-
-# pygame.quit()
-# sys.exit()
+pygame.quit()
+sys.exit()
