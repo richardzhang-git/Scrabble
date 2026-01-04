@@ -1,252 +1,326 @@
-from idna import valid_label_length
-
 import twl
-import numpy as np
 from collections import Counter
-'''keep record of previous board and previous possible 1 branches
-high score: 559'''
-LETTER_SCORES = {'?': 0, 'A': 1, 'E': 1, 'I': 1, 'O': 1, 'N': 1, 'R': 1, 'T': 1, 'L': 1, 'S': 1, 'U': 1, 'D': 2, 'G': 2, 'B': 3, 'C': 3, 'M': 3, 'P': 3, 'F': 4, 'H': 4, 'V': 4, 'W': 4, 'Y': 4, 'K': 5, 'J': 8, 'X': 8, 'Q': 10, 'Z': 10}
-board = [[["", None] for j in range(15)] for i in range(15)] #None = blank, L = left possible, R = right possible, U = up possible, D = down possible, LR, etc. with mixed = multiple possible N = none (blocked or used)
-board_empty = True
-possible_points = {'A': [], 'B': [], 'C': [], 'D': [], 'E': [], 'F': [], 'G': [], 'H': [], 'I': [], 'J': [], 'K': [], 'L': [], 'M': [], 'N': [], 'O': [], 'P': [], 'Q': [], 'R': [], 'S': [], 'T': [], 'U': [], 'V': [], 'W': [], 'X': [], 'Y': [], 'Z': []}
-possible_indexes = np.array([[-1, -1], ])
 
-#preferences
-BLANK_GREED = 0.5 #more positive, less willing to use
-#TODO: strategy with max/min available tiles for opponent to play off of
-#TODO: bridge towards bonus tiles
-#TODO: save letters for big bingos?
-#TODO: functionize
-#TODO: adapt based on score lead/loss
-def getMove(rack, board_state, bonus_squares):
-    global board, board_empty, LETTER_SCORES, possible_points, possible_indexes
-    for i in range(15):
-        for j in range(15):
-            board_state[i][j] = board_state[i][j].upper()
+def unpack(d):
+    new_d = dict()
+    for key in d.keys():
+        value = d[key]
+        for c in key:
+            new_d[c.upper()] = value
+    return new_d
+
+LETTER_SCORES = {
+    "aeionrtlsu": 1,
+    "dg": 2,
+    "bcmp": 3,
+    "fhvwy": 4,
+    'k': 5,
+    "jx": 8,
+    "qz": 10,
+    "?": 0
+}
+LETTER_SCORES = unpack(LETTER_SCORES)
+
+is_first_move = True
+
+def compare(x):
+    return x[1]
+
+def dfs(row: int, col: int, dir: str, board: list, rack: list, bonus_squares: dict):
+    if dir == 'H':
+        if col >= 1 and board[row][col-1]:
+            return None
+    else:
+        if row >= 1 and board[row-1][col]:
+            return None
+    visited = dict()
+    result = list()
+    connections_in_word = list()
+    connections_from_crossword = list()
+    blanks_used = list()
+    placed_tile = False
+    can_bingo = len(rack) == 7
+    if board[row][col]:
+        stack = [board[row][col].lower()]
+    else:
+        stack = list(twl.children(""))[::-1]
+    stack = list(zip(stack, [0]*len(stack), [1]*len(stack), [0]*len(stack), [0]*len(stack)))
+    word_so_far = ""
+    score_so_far = 0
+    mult_so_far = 1
+    crossword_scores = 0
+    while stack:
+        new_letter = stack.pop()
+        if new_letter == "POP CROSSWORD":
+            crossword_scores -= connections_from_crossword.pop()
+            continue
+        elif new_letter == "POP PLACED":
+            placed_tile = False
+            continue
+        score_so_far = new_letter[1]
+        mult_so_far = new_letter[2]
+        crossword_scores = new_letter[3]
+        new_letter = new_letter[0]
+        is_blank = False
+        if word_so_far+new_letter in visited:
+            continue
+        else:
+            visited[word_so_far+new_letter] = True
+        if new_letter == '$':
+            if placed_tile and (connections_in_word or connections_from_crossword):
+                result.append((word_so_far, score_so_far*mult_so_far+crossword_scores+(50 if can_bingo and not rack else 0), connections_in_word[:], blanks_used[:]))
+                # if can_bingo and not rack:
+                #     print("BINGO!", word_so_far, row, col, dir)
+            continue
+        if new_letter == "POP":
+            rack.append(word_so_far[-1].upper())
+            word_so_far = word_so_far[:-1]
+            continue
+        elif new_letter == "POP CONNECT":
+            connections_in_word.pop()
+            word_so_far = word_so_far[:-1]
+            continue
+        elif new_letter == "POP BLANK":
+            blanks_used.pop()
+            word_so_far = word_so_far[:-1]
+            rack.append('?')
+            continue
+        if dir == 'H' and col+len(word_so_far)+1 > 14:
+            continue
+        elif dir == 'V' and row+len(word_so_far)+1 > 14:
+            continue
+        word_so_far += new_letter
+        if not placed_tile:
+            if (dir == 'H' and not board[row][col+len(word_so_far)-1]) or (dir == 'V' and not board[row+len(word_so_far)-1][col]):
+                placed_tile = True
+                stack.append("POP PLACED")
+        if dir == 'H' and board[row][col+len(word_so_far)-1]:
+            stack.append(("POP CONNECT", score_so_far, mult_so_far, crossword_scores))
+            connections_in_word.append(len(word_so_far)-1)
+        elif dir == 'V' and board[row+len(word_so_far)-1][col]:
+            stack.append(("POP CONNECT", score_so_far, mult_so_far, crossword_scores))
+            connections_in_word.append(len(word_so_far)-1)
+        else:
+            if new_letter.upper() not in rack:
+                if '?' in rack:
+                    rack.remove('?')
+                    blanks_used.append(len(word_so_far)-1)
+                    stack.append(("POP BLANK", score_so_far, mult_so_far, crossword_scores))
+                    is_blank = True
+                else:
+                    word_so_far = word_so_far[:-1]
+                    continue
+            else:
+                rack.remove(new_letter.upper())
+                stack.append(("POP", score_so_far, mult_so_far, crossword_scores))
+        #add score here
+        if dir == 'H':
+            if board[row][col+len(word_so_far)-1] == new_letter.upper():
+                score_so_far += LETTER_SCORES[new_letter.upper()]
+            elif not board[row][col+len(word_so_far)-1]:
+                coords = (row, col+len(word_so_far)-1)
+                if not is_blank:
+                    score_so_far += LETTER_SCORES[new_letter.upper()]
+                if coords in bonus_squares.keys():
+                    if bonus_squares[coords] == 'TW':
+                        mult_so_far *= 3
+                    elif bonus_squares[coords] == 'DW':
+                        mult_so_far *= 2
+                    elif not is_blank and bonus_squares[coords] == 'TL':
+                        score_so_far += LETTER_SCORES[new_letter.upper()]*2
+                    elif not is_blank:
+                        score_so_far += LETTER_SCORES[new_letter.upper()]
+        else:
+            if board[row+len(word_so_far)-1][col] == new_letter.upper():
+                score_so_far += LETTER_SCORES[new_letter.upper()]
+            elif not board[row+len(word_so_far)-1][col]:
+                coords = (row+len(word_so_far)-1, col)
+                if not is_blank:
+                    score_so_far += LETTER_SCORES[new_letter.upper()]
+                if coords in bonus_squares.keys():
+                    if bonus_squares[coords] == 'TW':
+                        mult_so_far *= 3
+                    elif bonus_squares[coords] == 'DW':
+                        mult_so_far *= 2
+                    elif not is_blank and bonus_squares[coords] == 'TL':
+                        score_so_far += LETTER_SCORES[new_letter.upper()]*2
+                    elif not is_blank:
+                        score_so_far += LETTER_SCORES[new_letter.upper()]
+        #check crossword
+        if dir == 'H' and not board[row][col+len(word_so_far)-1]:
+            l_b = row
+            while l_b >= 1 and board[l_b-1][col+len(word_so_far)-1]:
+                l_b -= 1
+            u_b = row
+            while u_b <= 13 and board[u_b+1][col+len(word_so_far)-1]:
+                u_b += 1
+            if l_b != u_b:
+                crossword = ''
+                crossword_score = 0
+                for i in range(l_b, u_b+1):
+                    if i == row:
+                        crossword += new_letter
+                        if not is_blank:
+                            crossword_score += LETTER_SCORES[new_letter.upper()]
+                        continue
+                    crossword += board[i][col+len(word_so_far)-1].lower()
+                    crossword_score += LETTER_SCORES[board[i][col+len(word_so_far)-1]] if board[i][col+len(word_so_far)-1] == board[i][col+len(word_so_far)-1].upper() else 0
+                coords = (row, col+len(word_so_far)-1)
+                if coords in bonus_squares.keys():
+                    if bonus_squares[coords] == 'TW':
+                        crossword_score *= 3
+                    elif bonus_squares[coords] == 'DW':
+                        crossword_score *= 2
+                    elif not is_blank and bonus_squares[coords] == 'TL':
+                        crossword_score += LETTER_SCORES[new_letter.upper()]*2
+                    elif not is_blank:
+                        crossword_score += LETTER_SCORES[new_letter.upper()]
+                if not twl.check(crossword):
+                    continue
+                stack.append("POP CROSSWORD")
+                connections_from_crossword.append(crossword_score)
+                crossword_scores += crossword_score
+        elif dir == 'V' and not board[row + len(word_so_far) - 1][col]:
+            l_b = col
+            while l_b >= 1 and board[row + len(word_so_far) - 1][l_b - 1]:
+                l_b -= 1
+            u_b = col
+            while u_b <= 13 and board[row + len(word_so_far) - 1][u_b + 1]:
+                u_b += 1
+            if l_b != u_b:
+                crossword = ''
+                crossword_score = 0
+                for i in range(l_b, u_b + 1):
+                    if i == col:
+                        crossword += new_letter
+                        if not is_blank:
+                            crossword_score += LETTER_SCORES[new_letter.upper()]
+                        continue
+                    crossword += board[row + len(word_so_far) - 1][i].lower()
+                    crossword_score += LETTER_SCORES[board[row + len(word_so_far) - 1][i]] if board[row + len(word_so_far) - 1][i] == board[row + len(word_so_far) - 1][i].upper() else 0
+                coords = (row + len(word_so_far) - 1, col)
+                if coords in bonus_squares.keys():
+                    if bonus_squares[coords] == 'TW':
+                        crossword_score *= 3
+                    elif bonus_squares[coords] == 'DW':
+                        crossword_score *= 2
+                    elif not is_blank and bonus_squares[coords] == 'TL':
+                        crossword_score += LETTER_SCORES[new_letter.upper()] * 2
+                    elif not is_blank:
+                        crossword_score += LETTER_SCORES[new_letter.upper()]
+                if not twl.check(crossword):
+                    continue
+                stack.append("POP CROSSWORD")
+                connections_from_crossword.append(crossword_score)
+                crossword_scores += crossword_score
+                # print(row, col, dir, word_so_far, crossword_score)
+        #update stack
+        if dir == 'H' and col+len(word_so_far) <= 14 and board[row][col+len(word_so_far)]:
+            stack.append((board[row][col+len(word_so_far)].lower(), score_so_far, mult_so_far, crossword_scores))
+        elif dir == 'V' and row+len(word_so_far) <= 14 and board[row+len(word_so_far)][col]:
+            stack.append((board[row+len(word_so_far)][col].lower(), score_so_far, mult_so_far, crossword_scores))
+        else:
+            c = list(twl.children(word_so_far))
+            for i in range(len(c)-1, -1, -1):
+                next_letter = c[i]
+                if word_so_far+next_letter not in visited:
+                    if next_letter == '$' or next_letter.upper() in rack:
+                        stack.append((next_letter, score_so_far, mult_so_far, crossword_scores))
+                    else:
+                        pass
+    return max(result, key=compare) if result else None
+
+def first_move(rack):
     rack_counter = Counter(rack)
-    if board_empty: #check if first move
-        for i in range(15):
-            for j in range(15):
-                if board_state[i][j] != "":
-                    board_empty = False
-                    break
-            if not board_empty:
-                break
+    potential = list(twl.anagram(''.join(rack).lower()))
     has_blank = '?' in rack
     scores = []
     directions = []
     blanks_used = []
-    if board_empty: #first move
-        potential = list(twl.anagram(''.join(rack).lower()))
-        if potential:
-            offsets = []
-            for i in potential:
-                i = i.upper()
-                rack_counter_copy = rack_counter.copy()
-                blanks_index = []
-                if has_blank:
-                    v_score = []
-                    for l in range(len(i)):
-                        rack_counter_copy.subtract([i[l]])
-                        if rack_counter_copy[i[l]] < 0:
-                            v_score.append(0)
-                            blanks_index.append(l)
-                        else:
-                            v_score.append(LETTER_SCORES[i[l]])
-                else:
-                    v_score = [LETTER_SCORES[l] for l in i]
-                max_score = v_score.copy()
-                offset = 0
-                direction = "V"
-                for j in range(len(i)):
-                    temp_score = v_score.copy()
-                    if j+1 < len(temp_score):
-                        temp_score[j+1] *= 2
-                    if j+5 < len(temp_score):
-                        temp_score[j+5] *= 2
-                    if j-1 >= 0:
-                        temp_score[j-1] *= 2
-                    if sum(temp_score) > sum(max_score):
-                        max_score = temp_score
-                        offset = j
-                for j in range(len(i)):
-                    temp_score = v_score.copy()
-                    if j+4 < len(temp_score):
-                        temp_score[j+4] *= 2
-                    if j-4 >= 0:
-                        temp_score[j-4] *= 2
-                    if sum(temp_score) > sum(max_score):
-                        max_score = temp_score
-                        offset = j
-                        direction = 'H'
-                v_score = sum(max_score)
-                scores.append(v_score + (50 if len(i) == 7 else 0))
-                directions.append(direction)
-                offsets.append(offset)
-                blanks_used.append(blanks_index)
-            potential = list(zip(potential, scores, directions, offsets, blanks_used))
-            potential.sort(key=lambda x: x[1] - BLANK_GREED*len(x[4]))
-            chosen_word = list(potential[-1][0].upper())
-            for i in potential[-1][4]:
-                chosen_word[i] = chosen_word[i].lower()
-            chosen_word = "".join(chosen_word)
-            if potential[-1][2] == 'H':
-                return [(7, 7+i-potential[-1][3], chosen_word[i]) for i in range(len(chosen_word))]
-            return [(7+i-potential[-1][3], 7, chosen_word[i]) for i in range(len(chosen_word))]
-        return []
-    #actual algorithm here
-    possible_letters = list()
-    for i in range(15):
-        for j in range(15):
-            if board_state[i][j] != "" and board_state[i][j] != board[i][j][0]:
-                valid_placements = ""
-                up1 = i >= 1 and not board_state[i-1][j]
-                up2 = i >= 2 and not board_state[i-2][j]
-                down1 = i <= 13 and not board_state[i + 1][j]
-                down2 = i <= 12 and not board_state[i + 2][j]
-                if down1 and up1 and up2:
-                    valid_placements += 'U'
-                if up1 and down1 and down2:
-                    valid_placements += 'D'
-                left1 = j >= 1 and not board_state[i][j-1]
-                left2 = j >= 2 and not board_state[i][j - 2]
-                right1 = j <= 13 and not board_state[i][j+1]
-                right2 = j <= 12 and not board_state[i][j+2]
-                if right1 and left1 and left2:
-                    valid_placements += 'L'
-                if left1 and right1 and right2:
-                    valid_placements += 'R'
-                new_pos_i = [(-1, -1)] #first item is a buffer to set dimensions
-                for point in range(1, len(possible_indexes)):
-                    if 'U' in board[possible_indexes[point][0]][possible_indexes[point][1]][1] and j == possible_indexes[point][1] and -1 <= possible_indexes[point][0]-i <= 2:
-                        board[possible_indexes[point][0]][possible_indexes[point][1]][1] = board[possible_indexes[point][0]][possible_indexes[point][1]][1].replace('U', '')
-                    if 'D' in board[possible_indexes[point][0]][possible_indexes[point][1]][1] and j == possible_indexes[point][1] and -2 <= possible_indexes[point][0]-i <= 1:
-                        board[possible_indexes[point][0]][possible_indexes[point][1]][1] = board[possible_indexes[point][0]][possible_indexes[point][1]][1].replace('D', '')
-                    if 'L' in board[possible_indexes[point][0]][possible_indexes[point][1]][1] and i == possible_indexes[point][0] and -1 <= possible_indexes[point][1]-j <= 2:
-                        board[possible_indexes[point][0]][possible_indexes[point][1]][1] = board[possible_indexes[point][0]][possible_indexes[point][1]][1].replace('L', '')
-                    if 'R' in board[possible_indexes[point][0]][possible_indexes[point][1]][1] and i == possible_indexes[point][0] and -2 <= possible_indexes[point][1]-j <= 1:
-                        board[possible_indexes[point][0]][possible_indexes[point][1]][1] = board[possible_indexes[point][0]][possible_indexes[point][1]][1].replace('R', '')
-                    if not board[possible_indexes[point][0]][possible_indexes[point][1]][1]:
-                        possible_points[board_state[possible_indexes[point][0]][possible_indexes[point][1]]].remove(tuple(possible_indexes[point]))
+    if potential:
+        offsets = []
+        for i in potential:
+            i = i.upper()
+            rack_counter_copy = rack_counter.copy()
+            blanks_index = []
+            if has_blank:
+                v_score = []
+                for l in range(len(i)):
+                    rack_counter_copy.subtract([i[l]])
+                    if rack_counter_copy[i[l]] < 0:
+                        v_score.append(0)
+                        blanks_index.append(l)
                     else:
-                        new_pos_i.append(possible_indexes[point])
-                new_pos_i = np.array(new_pos_i)
-                possible_indexes = new_pos_i.copy()
-                if valid_placements:
-                    possible_points[board_state[i][j]].append((i, j))
-                    possible_indexes = np.append(possible_indexes, [(i, j)], axis=0)
-                board[i][j][0] = board_state[i][j]
-                board[i][j][1] = valid_placements
-    for i in possible_points.keys():
-        if possible_points[i]:
-            possible_letters.append(i)
-    possible_all_anchors = []
-    for anchor in list(possible_letters):
-        potential = list(twl.anagram((''.join(rack) + anchor).lower()))
-        potential_words_dupes = []
-        scores = []
-        anchor_pos = []
-        directions = []
-        positions = []
-        blanks_used = []
-        for word in potential:
-            word = word.upper()
-            if anchor in word:
-                rack_counter_copy = rack_counter.copy()
-                rack_counter_copy.update([anchor])
-                blanks_index = []
-                if has_blank:
-                    score = []
-                    for l in range(len(word)):
-                        rack_counter_copy.subtract([word[l]])
-                        if rack_counter_copy[word[l]] < 0:
-                            score.append(0)
-                            blanks_index.append(l)
-                        else:
-                            score.append(LETTER_SCORES[word[l]])
-                else:
-                    score = [LETTER_SCORES[l] for l in word]
-                for anchor_row, anchor_col in possible_points[anchor]:
-                    for i in range(len(word)):
-                        if word[i] == anchor:
-                            if 'U' in board[anchor_row][anchor_col][1] or 'D' in board[anchor_row][anchor_col][1]:
-                                valid = not (anchor_row-i < 0 or anchor_row-i+len(word)-1 >= 15)
-                                if valid:
-                                    for j in range(max(0, anchor_row-i-1), min(15, anchor_row-i+len(word)+1)):
-                                        for k in range(max(0, anchor_col-1), min(15, anchor_col+2)):
-                                            if (j == anchor_row-i-1 or j == anchor_row-i+len(word)) and (k == anchor_col-1 or k == anchor_col + 1):
-                                                continue
-                                            if j != anchor_row and board[j][k][0]:
-                                                valid = False
-                                                break
-                                        if not valid:
-                                            break
-                                if valid:
-                                    score_copy = score.copy()
-                                    for j in range(anchor_row-i, anchor_row-i+len(word)):
-                                        if (j, anchor_col) not in bonus_squares.keys():
-                                            continue
-                                        if bonus_squares[(j, anchor_col)] == 'TW':
-                                            score_copy = [_*3 for _ in score_copy]
-                                        elif bonus_squares[(j, anchor_col)] == 'DW':
-                                            score_copy = [_*2 for _ in score_copy]
-                                        elif bonus_squares[(j, anchor_col)] == 'TL':
-                                            score_copy[j-anchor_row+i] *= 3
-                                        else:
-                                            score_copy[j - anchor_row + i] *= 2
-                                    potential_words_dupes.append(word)
-                                    scores.append(sum(score_copy) + (50 if len(word) > 7 else 0))
-                                    anchor_pos.append((anchor_row, anchor_col))
-                                    directions.append('V')
-                                    positions.append((anchor_row-i, anchor_col))
-                                    blanks_used.append(blanks_index)
-                            if 'L' in board[anchor_row][anchor_col][1] or 'R' in board[anchor_row][anchor_col][1]:
-                                valid = not (anchor_col-i < 0 or anchor_col-i+len(word)-1 >= 15)
-                                if valid:
-                                    for j in range(max(0, anchor_col-i-1), min(15, anchor_col-i+len(word)+1)):
-                                        for k in range(max(0, anchor_row-1), min(15, anchor_row+2)):
-                                            if (j == anchor_col-i-1 or j == anchor_col-i+len(word)) and (k == anchor_row-1 or k == anchor_row + 1):
-                                                continue
-                                            if j != anchor_col and board[k][j][0]:
-                                                valid = False
-                                                break
-                                        if not valid:
-                                            break
-                                if valid:
-                                    score_copy = score.copy()
-                                    for j in range(anchor_col - i, anchor_col - i + len(word)):
-                                        if (anchor_row, j) not in bonus_squares.keys():
-                                            continue
-                                        if bonus_squares[(anchor_row, j)] == 'TW':
-                                            score_copy = [_ * 3 for _ in score_copy]
-                                        elif bonus_squares[(anchor_row, j)] == 'DW':
-                                            score_copy = [_ * 2 for _ in score_copy]
-                                        elif bonus_squares[(anchor_row, j)] == 'TL':
-                                            score_copy[j - anchor_col + i] *= 3
-                                        else:
-                                            score_copy[j - anchor_col + i] *= 2
-                                    potential_words_dupes.append(word)
-                                    scores.append(sum(score_copy) + (50 if len(word) > 7 else 0))
-                                    anchor_pos.append((anchor_row, anchor_col))
-                                    directions.append('H')
-                                    positions.append((anchor_row, anchor_col-i))
-                                    blanks_used.append(blanks_index)
-        possible_all_anchors += list(zip(potential_words_dupes, scores, anchor_pos, directions, positions, blanks_used))
-    possible_all_anchors.sort(key=lambda x: x[1] - BLANK_GREED*len(x[5]), reverse=True)
-    if len(possible_all_anchors):
-        chosen_word = list(possible_all_anchors[0][0])
-        for i in possible_all_anchors[0][5]:
+                        v_score.append(LETTER_SCORES[i[l]])
+            else:
+                v_score = [LETTER_SCORES[l] for l in i]
+            max_score = v_score.copy()
+            offset = 0
+            direction = "V"
+            for j in range(len(i)):
+                temp_score = v_score.copy()
+                if j + 1 < len(temp_score):
+                    temp_score[j + 1] *= 2
+                if j + 5 < len(temp_score):
+                    temp_score[j + 5] *= 2
+                if j - 1 >= 0:
+                    temp_score[j - 1] *= 2
+                if sum(temp_score) > sum(max_score):
+                    max_score = temp_score
+                    offset = j
+            for j in range(len(i)):
+                temp_score = v_score.copy()
+                if j + 4 < len(temp_score):
+                    temp_score[j + 4] *= 2
+                if j - 4 >= 0:
+                    temp_score[j - 4] *= 2
+                if sum(temp_score) > sum(max_score):
+                    max_score = temp_score
+                    offset = j
+                    direction = 'H'
+            v_score = sum(max_score)
+            scores.append(v_score + (50 if len(i) == 7 else 0))
+            directions.append(direction)
+            offsets.append(offset)
+            blanks_used.append(blanks_index)
+        potential = list(zip(potential, scores, directions, offsets, blanks_used))
+        potential.sort(key=lambda x: x[1])
+        chosen_word = list(potential[-1][0].upper())
+        for i in potential[-1][4]:
             chosen_word[i] = chosen_word[i].lower()
-        if possible_all_anchors[0][3] == 'H':
-            row_cords = [possible_all_anchors[0][4][0]] * len(chosen_word)
-            col_cords = [possible_all_anchors[0][4][1] + i for i in range(len(chosen_word))]
-            chosen_word = list(zip(row_cords, col_cords, chosen_word))
-            chosen_word.pop(possible_all_anchors[0][2][1]-possible_all_anchors[0][4][1])
-        else:
-            row_cords = [possible_all_anchors[0][4][0] + i for i in range(len(chosen_word))]
-            col_cords = [possible_all_anchors[0][4][1]] * len(chosen_word)
-            chosen_word = list(zip(row_cords, col_cords, chosen_word))
-            chosen_word.pop(possible_all_anchors[0][2][0] - possible_all_anchors[0][4][0])
-        #only return placed letters, not whole word
-        return chosen_word
+        chosen_word = "".join(chosen_word)
+        # trout_score += potential[-1][1]
+        if potential[-1][2] == 'H':
+            return [(7, 7 + i - potential[-1][3], chosen_word[i]) for i in range(len(chosen_word))]
+        return [(7 + i - potential[-1][3], 7, chosen_word[i]) for i in range(len(chosen_word))]
     return []
+
+def getMove(rack, board_state, bonus_squares):
+    global is_first_move, rack_weight
+    if is_first_move and not ''.join([''.join(i) for i in board_state]):
+        is_first_move = False
+        return first_move(rack)
+    possibilities = []
+    for i in range(14):
+        for j in range(14):
+            horizontal_result = dfs(i, j, 'H', board_state, rack, bonus_squares)
+            if horizontal_result is not None:
+                possibilities.append((horizontal_result[0], horizontal_result[1], horizontal_result[2], horizontal_result[3], i, j, 'H'))
+            vertical_result = dfs(i, j, 'V', board_state, rack, bonus_squares)
+            if vertical_result is not None:
+                possibilities.append((vertical_result[0], vertical_result[1], vertical_result[2], vertical_result[3], i, j, 'V'))
+    if not possibilities:
+        return []
+    # print(possibilities)
+    optimal = max(possibilities, key=compare)
+    print(optimal)
+    output = []
+    for i in range(len(optimal[0])):
+        if i not in optimal[2]:
+            if optimal[6] == 'H':
+                output.append((optimal[4], optimal[5]+i, optimal[0][i].upper()))
+            else:
+                output.append((optimal[4]+i, optimal[5], optimal[0][i].upper()))
+    for i in optimal[3]:
+        output[i] = (output[i][0], output[i][1], output[i][2].lower())
+    return output

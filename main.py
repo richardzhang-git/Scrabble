@@ -3,8 +3,8 @@ from collections import Counter
 import pygame
 import sys
 
-# import random
-# random.seed(1234)
+import random
+random.seed(1234)
 
 # Example bot function
 from exampleBot import getMove
@@ -240,8 +240,8 @@ board = Board()
 bag = LetterBag()
 
 players = [
-    {"name": "Bot 1", "rack": bag.draw(7), "score": 0, "function": itertrout.getMove, "illegal": False},
-    {"name": "Bot 2", "rack": bag.draw(7), "score": 0, "function": sticktrout.getMove, "illegal": False},
+    {"name": "Bot 1", "rack": bag.draw(7), "score": 0, "function": sticktrout.getMove, "illegal": False},
+    {"name": "Bot 2", "rack": bag.draw(7), "score": 0, "function": searchtrout.getMove, "illegal": False},
 ]
 consec_passes = 0
 moves_played = 0
