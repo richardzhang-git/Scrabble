@@ -313,7 +313,7 @@ def getMove(rack, board_state, bonus_squares):
         return []
     # print(possibilities)
     optimal = max(possibilities, key=compare)
-    print(optimal)
+    # print(optimal)
     output = []
     for i in range(len(optimal[0])):
         if i not in optimal[2]:
